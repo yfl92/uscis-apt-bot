@@ -19,8 +19,9 @@ const (
 
 var (
 	// SF, San Jose, Oakland
-	// zipCodes = []string{"94016", "94088", "94501"}
-	zipCodes = []string{"94016"}
+	zipCodes = []string{"94016", "94088", "94501"}
+
+	pollInterval = 15 * time.Second
 )
 
 type response struct {
@@ -31,7 +32,7 @@ type response struct {
 func main() {
 	poll()
 
-	ticker := time.NewTicker(2 * time.Hour)
+	ticker := time.NewTicker(pollInterval)
 	for {
 		select {
 		case <-ticker.C:
@@ -41,7 +42,7 @@ func main() {
 }
 
 func poll() {
-	fmt.Println("Polling...")
+	fmt.Printf("[%s] Polling...\n", time.Now())
 
 	for _, zipCode := range zipCodes {
 		location, err := findAvailabiltiy(zipCode)
@@ -50,24 +51,18 @@ func poll() {
 			continue
 		}
 
-		// if location == "" {
-		// 	fmt.Printf("Cannot find location for zipcode %s\n", zipCode)
-		// 	continue
-		// }
+		if location == "" {
+			fmt.Printf("Cannot find location for zipcode %s\n", zipCode)
+			continue
+		}
 
-		content := fmt.Sprintf(
-			"Found a slot in %s, visit https://my.uscis.gov/appointmentscheduler-appointment/ca/en/office-search and search for %s",
-			location,
-			zipCode,
-		)
-
-		if err := sendMsg(content); err != nil {
+		if err := call(); err != nil {
 			fmt.Printf("Error: %s\n", err)
 		}
 	}
 }
 
-func sendMsg(content string) error {
+func call() error {
 	accountSid := os.Getenv("TWILIO_ACCOUNT_SID")
 	authToken := os.Getenv("TWILIO_AUTH_TOKEN")
 
@@ -79,18 +74,15 @@ func sendMsg(content string) error {
 		Password: authToken,
 	})
 
-	params := (&twilioApi.CreateMessageParams{}).
+	params := (&twilioApi.CreateCallParams{}).
 		SetTo(toNumebr).
 		SetFrom(fromNumber).
-		SetBody(content)
+		SetUrl("http://twimlets.com/holdmusic?Bucket=com.twilio.music.ambient")
 
-	resp, err := client.Api.CreateMessage(params)
+	_, err := client.Api.CreateCall(params)
 	if err != nil {
-		return errors.Wrap(err, "Error sending SMS messsage")
+		return errors.Wrap(err, "Error calling")
 	}
-
-	response, _ := json.Marshal(*resp)
-	fmt.Println("Response: " + string(response))
 
 	return nil
 }
